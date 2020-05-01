@@ -27,14 +27,13 @@
   \file database_generator.hpp
   \brief Utility class to generate a database in form of a logic
          network from functions.
-
   \author Heinz Riener
 */
 
 #pragma once
 
-#include <kitty/properties.hpp>
 #include <kitty/print.hpp>
+#include <kitty/properties.hpp>
 
 #include <vector>
 
@@ -55,10 +54,8 @@ public:
   using signal = mockturtle::signal<Ntk>;
 
 public:
-  explicit database_generator( Ntk& ntk, ResynFn const& resyn, database_generator_params const& ps )
-    : ntk( ntk )
-    , resyn( resyn )
-    , ps( ps )
+  explicit database_generator( Ntk& ntk, ResynFn const& resyn, database_generator_params const& ps = {} )
+      : ntk( ntk ), resyn( resyn ), ps( ps )
   {
     for ( auto i = 0u; i < ps.num_vars; ++i )
     {
@@ -76,14 +73,15 @@ public:
 
     /* resynthesize the function and add it to the database */
     resyn( ntk, tt, std::begin( pis ), std::end( pis ),
-           [&]( const signal& s )
-           {
+           [&]( const signal& s ) {
              if ( ps.verbose )
              {
-               std::cout << "[i] function: "; kitty::print_binary( tt );
+               std::cout << "[i] function: ";
+               kitty::print_binary( tt );
                std::cout << " stored at PO #" << ntk.num_pos() << std::endl;
              }
              ntk.create_po( s );
+
              return ps.multiple_candidates;
            } );
   }
@@ -95,4 +93,4 @@ public:
   std::vector<signal> pis;
 }; /* database_generator */
 
-} /* mockturtle */
+} // namespace mockturtle::detail
