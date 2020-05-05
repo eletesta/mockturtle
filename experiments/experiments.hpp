@@ -390,6 +390,10 @@ static const char* benchmarks[] = {
     "adder", "bar", "div", "hyp", "log2", "max", "multiplier", "sin", "sqrt", "square",
     "arbiter", "cavlc", "ctrl", "dec", "i2c", "int2float", "mem_ctrl", "priority", "router", "voter"};
 
+static const char* benchmarks_sce[] = {
+    "cavlc", "i2c", "int2float", "priority", "voter", "apex6", "i10", "x4", "c499", "c2670", "c3540", "c5315", 
+    "c7552"};
+
 std::vector<std::string> epfl_benchmarks( uint32_t selection = all )
 {
   std::vector<std::string> result;
@@ -403,6 +407,16 @@ std::vector<std::string> epfl_benchmarks( uint32_t selection = all )
   return result;
 }
 
+std::vector<std::string> sce_benchmarks( )
+{
+  std::vector<std::string> result;
+  for ( uint32_t i = 0u; i < 13u; ++i )
+  {
+      result.push_back( benchmarks_sce[i] );
+  }
+  return result;
+}
+
 std::string benchmark_path( std::string const& benchmark_name )
 {
 #ifndef EXPERIMENTS_PATH
@@ -412,11 +426,41 @@ std::string benchmark_path( std::string const& benchmark_name )
 #endif
 }
 
+std::string benchmark_sce_path( std::string const& benchmark_name )
+{
+#ifndef EXPERIMENTS_PATH
+  return fmt::format( "{}.aig", benchmark_name );
+#else
+  return fmt::format( "{}benchmarks_sce/{}.aig", EXPERIMENTS_PATH, benchmark_name );
+#endif
+}
+
 template<class Ntk>
 bool abc_cec( Ntk const& ntk, std::string const& benchmark )
 {
   mockturtle::write_bench( ntk, "/tmp/test.bench" );
-  std::string command = fmt::format( "abc -q \"cec -n {} /tmp/test.bench\"", benchmark_path( benchmark ) );
+  std::string command = fmt::format( "../../abc/abc -q \"cec -n {} /tmp/test.bench\"", benchmark_path( benchmark ) );
+
+  std::array<char, 128> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  return result.size() >= 23 && result.substr( 0u, 23u ) == "Networks are equivalent";
+}
+
+template<class Ntk>
+bool abc_cec_sce( Ntk const& ntk, std::string const& benchmark )
+{
+  mockturtle::write_bench( ntk, "/tmp/test.bench" );
+  std::string command = fmt::format( "../../abc/abc -q \"cec -n {} /tmp/test.bench\"", benchmark_sce_path( benchmark ) );
 
   std::array<char, 128> buffer;
   std::string result;

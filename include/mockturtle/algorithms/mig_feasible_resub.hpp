@@ -172,6 +172,8 @@ public:
       ntk.foreach_fanin( n, [&]( const auto& f ) {
         if ( ntk.level( n ) == ntk.level( ntk.get_node( f ) ) - 1 )
           ok_nodes++;
+        else if ( ntk.node_to_index( ntk.get_node(f) ) == 0 )
+          ok_nodes++;
         return true;
       } );
       if ( ok_nodes == int( ntk.fanin_size( n ) ) )
@@ -527,19 +529,36 @@ public:
     auto const tt = sim.get_tt( ntk.make_signal( root ) );
     std::vector<signal> children;
 
+    std::vector<signal> ok_c;
     ntk.foreach_fanin( root, [&]( auto const& s ) {
-      children.emplace_back( s );
+      if ( ntk.node_to_index( ntk.get_node( s ) ) == 0 )
+        ok_c.emplace_back( s );
+      else if ( ntk.level( ntk.get_node( s ) ) == ntk.level( root ) - 1 )
+        ok_c.emplace_back( s );
+      else
+        children.emplace_back( s );
     } );
+    
+    if (children.size() > 1)
     std::sort( children.begin(), children.end(), [&]( signal& n1, signal& n2 ) {
-      return ( ntk.level( ntk.get_node( n1 ) ) < ntk.level( ntk.get_node( n2 ) ) );
+      return ( float(ntk.level( ntk.get_node( n1 )) -  ntk.fanout_size( ntk.get_node( n1 ))/2 ) < float(ntk.level( ntk.get_node( n2 ) ) - ntk.fanout_size( ntk.get_node( n2 ))/2) );
     } );
+    
+    if (children.size() == 0)
+       return std::nullopt;
+    children.insert(children.end(), ok_c.begin(), ok_c.end());
+    
+    //if ( ntk.node_to_index( ntk.get_node( children[0] ) ) == 0 )
+      //return std::nullopt;
 
-    if ( ntk.node_to_index( ntk.get_node( children[0] ) ) == 0 )
-      return std::nullopt;
+    // always decrease buffers:
+    //if ( ntk.fanout_size( ntk.get_node( children[0] ) ) > 1 )
+      //return std::nullopt;
 
-    auto flag = false;
+  
     for ( auto i = 0u; i < only_divs.size(); ++i )
     {
+      auto flag = false;
       auto const d = only_divs.at( i );
       for ( auto j = 0u; j < children.size(); j++ )
       {
