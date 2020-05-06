@@ -525,7 +525,7 @@ void example7()
     view_t resub_view{fanout_view};
 
     mockturtle::resubstitution_params ps;
-    //ps.verbose = true; 
+    //ps.verbose = true;
     ps.max_divisors = 300;
     mig_feasible_resubstitution( resub_view, ps );
 
@@ -613,25 +613,25 @@ void example7_bis()
 
     using view_t = mockturtle::depth_view<mockturtle::fanout_view<mockturtle::mig_network>>;
     using view_f = mockturtle::fanout_view<mockturtle::mig_network>;
-    
+
     mockturtle::resubstitution_params ps;
     ps.max_divisors = 300;
 
     auto original_buffer = detail::compute_buffers( mig3 );
-    auto i = 0u; 
+    auto i = 0u;
     while ( true )
     {
-      if (i > 30)
-      break; 
+      if ( i > 30 )
+        break;
       i++;
       view_f fanout_view{mig4};
       view_t resub_view{fanout_view};
       mig_feasible_resubstitution( resub_view, ps );
 
       mig4 = cleanup_dangling( mig4 );
-      if (detail::compute_buffers( mig4 ) >= original_buffer )
-      break;
-      mig3 = mig4; 
+      if ( detail::compute_buffers( mig4 ) >= original_buffer )
+        break;
+      mig3 = mig4;
       //original_buffer = detail::compute_buffers( mig4 );
     }
 
@@ -749,8 +749,8 @@ void example9()
     mockturtle::depth_view depth_mig3{mig2};
     mig_algebraic_depth_rewriting( depth_mig3 );
     mig_algebraic_depth_rewriting( depth_mig3 );
-    
-    mig2 = depth_mig3; 
+
+    mig2 = depth_mig3;
 
     while ( true )
     {
@@ -770,14 +770,77 @@ void example9()
       klut = new_klut;
       mig2 = new_mig;
     }
-    
+
     mockturtle::depth_view depth_mig4{mig2};
     mig_algebraic_depth_rewriting( depth_mig4 );
     mig_algebraic_depth_rewriting( depth_mig4 );
     mig_algebraic_depth_rewriting( depth_mig4 );
-    auto buffers2 = detail::compute_buffers( depth_mig4);
+    auto buffers2 = detail::compute_buffers( depth_mig4 );
 
     exp( benchmark, klut.size(), size_b, depth_b, buffers1, experiments::abc_cec_sce( mig2, benchmark ), depth_mig4.size(), depth_mig4.depth(), buffers2, experiments::abc_cec_sce( depth_mig2, benchmark ), buffers1 - buffers2 );
+  }
+
+  exp.save();
+  exp.table();
+}
+
+// exact synthesis + resub modified
+void example10()
+{
+  using namespace experiments;
+
+  /* load database from file */
+  mockturtle::mig_network mig_db;
+  read_verilog( "db.v", mockturtle::verilog_reader( mig_db ) );
+
+  /* option 1: XMG strategy using database from file */
+  mockturtle::mig4_npn_resynthesis_params ps;
+
+  ps.multiple_depth = true;
+  mockturtle::mig4_npn_resynthesis<mockturtle::mig_network> mig_resyn2( mockturtle::detail::to_index_list( mig_db ), ps );
+
+  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, bool, uint32_t, uint32_t, uint32_t, bool, int> exp( "miglut_compare", "benchmark", "LUTs", "MIG_1", "depth_1", "buffers_1", "eq cec1", "MIG_2", "depth_2", "buffers_2", "eq cec_2", "buffer_change" );
+
+  for ( auto const& benchmark : sce_benchmarks() )
+  {
+    fmt::print( "[i] processing {}\n", benchmark );
+
+    /* read aig */
+    mockturtle::aig_network aig;
+    if ( lorina::read_aiger( experiments::benchmark_sce_path( benchmark ), mockturtle::aiger_reader( aig ) ) != lorina::return_code::success )
+    {
+      std::cout << "ERROR 2" << std::endl;
+      std::abort();
+      return;
+    }
+
+    /* LUT map AIG into k-LUT network */
+    auto klut = lut_map( aig, 4u );
+
+    mockturtle::mig_network mig2;
+    mig2 = mockturtle::node_resynthesis<mockturtle::mig_network>( klut, mig_resyn2 );
+    mockturtle::depth_view depth_mig2{mig2};
+
+    auto const size_b = mig2.size();
+    auto const depth_b = depth_mig2.depth();
+    auto buffers1 = detail::compute_buffers( mig2 );
+
+    using view_t = mockturtle::depth_view<mockturtle::fanout_view<mockturtle::mig_network>>;
+    using view_f = mockturtle::fanout_view<mockturtle::mig_network>;
+
+    mockturtle::resubstitution_params ps;
+    ps.max_divisors = 100;
+
+    view_f fanout_view{mig2};
+    view_t resub_view{fanout_view};
+    mig_feasible_resubstitution( resub_view, ps );
+
+    mig2 = cleanup_dangling( mig2 );
+
+    mockturtle::depth_view depth_mig3{mig2};
+    auto buffers2 = detail::compute_buffers( mig2 );
+
+    exp( benchmark, klut.size(), size_b, depth_b, buffers1, experiments::abc_cec_sce( depth_mig2, benchmark ), mig2.size(), depth_mig3.depth(), buffers2, experiments::abc_cec_sce( mig2, benchmark ), buffers1 - buffers2 );
   }
 
   exp.save();
@@ -787,6 +850,6 @@ void example9()
 // debug is example 3
 int main()
 {
-  example9();
+  example10();
   return 0;
 }

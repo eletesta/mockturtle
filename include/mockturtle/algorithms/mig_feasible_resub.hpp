@@ -75,9 +75,6 @@ struct resubstitution_stats_feasible
   /*! \brief Total number of leaves  */
   uint64_t num_total_leaves{0};
 
-  /*! \brief Total number of gain  */
-  uint64_t estimated_gain{0};
-
   void report() const
   {
     std::cout << fmt::format( "[i] total time                                                  ({:>5.2f} secs)\n", to_seconds( time_total ) );
@@ -88,8 +85,6 @@ struct resubstitution_stats_feasible
     std::cout << fmt::format( "[i]   substitute                                                ({:>5.2f} secs)\n", to_seconds( time_substitute ) );
     std::cout << fmt::format( "[i] total divisors            = {:8d}\n", ( num_total_divisors ) );
     std::cout << fmt::format( "[i] total leaves              = {:8d}\n", ( num_total_leaves ) );
-    std::cout << fmt::format( "[i] estimated gain            = {:8d} ({:>5.2f}%)\n",
-                              estimated_gain, ( ( 100.0 * estimated_gain ) / initial_size ) );
   }
 };
 
@@ -137,8 +132,6 @@ public:
     /* start the managers */
     cut_manager<Ntk> mgr( ps.max_pis );
 
-    progress_bar pbar{ntk.size(), "resub |{0}| node = {1:>4}   cand = {2:>4}   est. gain = {3:>5}", ps.progress};
-
     auto const size = ntk.num_gates();
     std::vector<std::vector<node>> depth_order( ntk.depth() + 1 );
     std::vector<node> ordered;
@@ -160,20 +153,22 @@ public:
     {
       if ( i >= size )
         break; /* terminate */
-
-      pbar( i, i, candidates, st.estimated_gain );
       i++;
 
       if ( ntk.is_dead( n ) )
         continue; /* next */
 
       /* skip balanced nodes */
+      min_depth = ntk.level( n ) - 1;
       auto ok_nodes = 0;
       ntk.foreach_fanin( n, [&]( const auto& f ) {
-        if ( ntk.level( n ) == ntk.level( ntk.get_node( f ) ) - 1 )
+        if ( ( ntk.level( n ) - 1 == ntk.level( ntk.get_node( f ) ) ) || ( ntk.node_to_index( ntk.get_node( f ) ) == 0 ) )
+        {
           ok_nodes++;
-        else if ( ntk.node_to_index( ntk.get_node(f) ) == 0 )
-          ok_nodes++;
+          return true;
+        }
+        if ( ntk.level( ntk.get_node( f ) ) < min_depth )
+          min_depth = ntk.level( ntk.get_node( f ) );
         return true;
       } );
       if ( ok_nodes == int( ntk.fanin_size( n ) ) )
@@ -198,10 +193,6 @@ public:
       {
         continue; /* next */
       }
-
-      /* update progress bar */
-      candidates++;
-      st.estimated_gain += last_gain;
 
       /* update network */
       call_with_stopwatch( st.time_substitute, [&]() {
@@ -281,8 +272,6 @@ private:
   {
     uint32_t const required = std::numeric_limits<uint32_t>::max();
 
-    last_gain = 0;
-
     Node_mffc collector( ntk );
     auto num_mffc = collector.run( root, leaves, temp );
 
@@ -296,6 +285,28 @@ private:
       return std::nullopt;
     }
 
+    only_divs.clear();
+
+    // put required as my maximum depth that I can go down to my divisors
+
+    for ( auto k = 0u; k < divs.size() - 1; k++ )
+    {
+      if ( ntk.level( divs[k] ) > min_depth )
+        {
+          only_divs.emplace_back( divs[k] );
+          //std::cout << "divisor = " << ntk.node_to_index(divs[k]) << " with level = " << ntk.level(divs[k]) << std::endl;
+        }
+    }
+
+    std::sort( only_divs.begin(), only_divs.end(), [&]( node& n1, node& n2 ) {
+      return ( ntk.level( n1 ) > ntk.level( n2 ) );
+    } );
+
+    divs.clear();
+    divs = only_divs;
+
+    num_divs = only_divs.size();
+    std::cout << " num divs = " << num_divs << std::endl;
     /* update statistics */
     st.num_total_divisors += num_divs;
     st.num_total_leaves += leaves.size();
@@ -329,6 +340,8 @@ private:
     if ( ntk.value( n ) == 0 && n != 0 ) /* ntk.fanout_size( n ) */
     {
       internal.emplace_back( n );
+      //if ( ntk.level( n ) <= min_depth )
+        //divisors_not_ok++;
     }
   }
 
@@ -336,6 +349,7 @@ private:
   {
     /* add the leaves of the cuts to the divisors */
     divs.clear();
+    divisors_not_ok = 0;
 
     ntk.incr_trav_id();
     for ( const auto& l : leaves )
@@ -361,7 +375,7 @@ private:
     }
 
     /* get the number of divisors to collect */
-    int32_t limit = ps.max_divisors - ps.max_pis - ( uint32_t( divs.size() ) + 1 - uint32_t( leaves.size() ) + uint32_t( temp.size() ) );
+    int32_t limit = ps.max_divisors - ps.max_pis - ( uint32_t( divs.size() ) + 1 - uint32_t( leaves.size() ) + uint32_t( temp.size() )  );
 
     /* explore the fanouts, which are not in the MFFC */
     int32_t counter = 0;
@@ -410,6 +424,10 @@ private:
         divs.emplace_back( p );
         ++size;
         ntk.set_visited( p, ntk.trav_id() );
+        //if ( ntk.level( p ) <= min_depth )
+        //  divisors_not_ok++;
+        //else
+          //counter++;
 
         /* quit computing divisors if there are too many of them */
         if ( ++counter == limit )
@@ -424,9 +442,6 @@ private:
       if ( quit )
         break;
     }
-
-    /* get the number of divisors */
-    num_divs = uint32_t( divs.size() );
 
     /* add the nodes in the MFFC */
     for ( const auto& t : temp )
@@ -448,13 +463,12 @@ private:
   resubstitution_stats_feasible& st;
   typename ResubFn::stats& resub_st;
 
-  /* temporary statistics for progress bar */
-  uint32_t candidates{0};
-  uint32_t last_gain{0};
-
   std::vector<node> temp;
   std::vector<node> divs;
+  std::vector<node> only_divs;
   uint32_t num_divs{0};
+  uint32_t min_depth{0};
+  uint32_t divisors_not_ok{0};
 }; // namespace detail
 
 } // namespace detail
@@ -486,18 +500,6 @@ public:
     {
       return g; /* accepted resub */
     }
-
-    only_divs.clear();
-
-    // put required as my maximum depth that I can go down to my divisors
-    for ( auto k = 0u; k < divs.size() - 1; k++ )
-    {
-      only_divs.emplace_back( divs[k] );
-    }
-
-    std::sort( only_divs.begin(), only_divs.end(), [&]( node& n1, node& n2 ) {
-      return ( ntk.level( n1 ) > ntk.level( n2 ) );
-    } );
 
     /* consider constants */
     g = call_with_stopwatch( st.time_resubC, [&]() {
@@ -538,28 +540,25 @@ public:
       else
         children.emplace_back( s );
     } );
-    
-    if (children.size() > 1)
-    std::sort( children.begin(), children.end(), [&]( signal& n1, signal& n2 ) {
-      return ( float(ntk.level( ntk.get_node( n1 )) -  ntk.fanout_size( ntk.get_node( n1 ))/2 ) < float(ntk.level( ntk.get_node( n2 ) ) - ntk.fanout_size( ntk.get_node( n2 ))/2) );
-    } );
-    
-    if (children.size() == 0)
-       return std::nullopt;
-    children.insert(children.end(), ok_c.begin(), ok_c.end());
-    
-    //if ( ntk.node_to_index( ntk.get_node( children[0] ) ) == 0 )
-      //return std::nullopt;
+
+    if ( children.size() > 1 )
+      std::sort( children.begin(), children.end(), [&]( signal& n1, signal& n2 ) {
+        return ( float( ntk.level( ntk.get_node( n1 ) ) - ntk.fanout_size( ntk.get_node( n1 ) ) / 2 ) < float( ntk.level( ntk.get_node( n2 ) ) - ntk.fanout_size( ntk.get_node( n2 ) ) / 2 ) );
+      } );
+
+    if ( children.size() == 0 )
+      return std::nullopt;
+
+    children.insert( children.end(), ok_c.begin(), ok_c.end() );
 
     // always decrease buffers:
     //if ( ntk.fanout_size( ntk.get_node( children[0] ) ) > 1 )
-      //return std::nullopt;
+    //return std::nullopt;
 
-  
-    for ( auto i = 0u; i < only_divs.size(); ++i )
+    for ( auto i = 0u; i < divs.size(); ++i )
     {
       auto flag = false;
-      auto const d = only_divs.at( i );
+      auto const d = divs.at( i );
       for ( auto j = 0u; j < children.size(); j++ )
       {
         if ( ntk.get_node( children[j] ) == d )
@@ -598,7 +597,6 @@ private:
   Ntk& ntk;
   Simulator const& sim;
   std::vector<node> const& divs;
-  std::vector<node> only_divs;
   uint32_t const num_divs;
   stats& st;
 }; // namespace mockturtle
