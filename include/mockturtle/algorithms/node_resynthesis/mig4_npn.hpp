@@ -181,7 +181,7 @@ public:
       }
       else if ( ps.multiple_depth )
       {
-        mockturtle::depth_view<mig_network> depth_ntk{_db};
+        mockturtle::depth_view<DatabaseNtk> depth_ntk{_db};
         unsigned depth_M = depth_ntk.level( depth_ntk.get_node( cand ) );
         if ( depth_M < best )
         {
@@ -192,7 +192,7 @@ public:
       else if ( ps.multiple_if )
       {
         /* first best for depth */
-        mockturtle::depth_view<mig_network> depth_ntk{_db};
+        mockturtle::depth_view<DatabaseNtk> depth_ntk{_db};
         //unsigned depth_M = depth_ntk.level( depth_ntk.get_node( cand ) );
         int buffers = 0;
         std::map<int, int> node_buffers;
@@ -295,7 +295,7 @@ private:
     st.covered_classes = static_cast<uint32_t>( _repr_to_signal.size() );
   }
 
-  void compute_buffers_local( signal<DatabaseNtk> const& cand, depth_view<mig_network> const& ntk, int& buffers , std::map<int, int>& node_buffers) const
+  void compute_buffers_local( signal<DatabaseNtk> const& cand, depth_view<DatabaseNtk> const& ntk, int& buffers , std::map<int, int>& node_buffers) const
   {
     node<DatabaseNtk> root = ntk.get_node( cand );
     ntk.foreach_fanin( root, [&]( auto const& s ) {

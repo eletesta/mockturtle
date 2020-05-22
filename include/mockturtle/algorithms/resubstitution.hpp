@@ -42,8 +42,27 @@
 
 #include <kitty/constructors.hpp>
 #include <kitty/print.hpp>
-#include <kitty/static_truth_table.hpp>
 #include <kitty/properties.hpp>
+#include <kitty/static_truth_table.hpp>
+
+namespace detail
+{
+template<class Ntk>
+struct fanout_cost_depth
+{
+  uint32_t operator()( Ntk const& ntk, mockturtle::node<Ntk> const& n ) const
+  {
+    uint32_t cost = 0;
+    if ( ntk.fanout_size( n ) == 1 )
+      cost = 1;
+    else if ( ( ntk.fanout_size( n ) > 1 ) && ( ntk.fanout_size( n ) < 5 ) )
+      cost = 2;
+    else if ( ( ntk.fanout_size( n ) > 4 ) && ( ntk.fanout_size( n ) < 17 ) )
+      cost = 3;
+    return cost;
+  }
+};
+} // namespace detail
 
 namespace mockturtle
 {
@@ -527,6 +546,8 @@ public:
         ntk.substitute_node( n, *g );
       } );
 
+      ntk.update_levels();
+      ntk.update_fanout();
       return true; /* next */
     } );
   }
@@ -597,7 +618,7 @@ private:
 
   std::optional<signal> evaluate( node const& root, std::vector<node> const& leaves )
   {
-    uint32_t const required = std::numeric_limits<uint32_t>::max();
+    uint32_t const required = ntk.level( root ) - 1; //std::numeric_limits<uint32_t>::max();
 
     last_gain = 0;
 
@@ -802,8 +823,8 @@ private:
  * \param ps Resubstitution params
  * \param pst Resubstitution statistics
  */
-template<class Ntk>
-void resubstitution( Ntk& ntk, resubstitution_params const& ps = {}, resubstitution_stats* pst = nullptr )
+template<class Ntk, class NodeCostFn>
+void resubstitution( depth_view<Ntk,NodeCostFn>& ntk, resubstitution_params const& ps = {}, resubstitution_stats* pst = nullptr )
 {
   static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
   static_assert( has_clear_values_v<Ntk>, "Ntk does not implement the clear_values method" );
@@ -823,9 +844,10 @@ void resubstitution( Ntk& ntk, resubstitution_params const& ps = {}, resubstitut
   static_assert( has_value_v<Ntk>, "Ntk does not implement the has_value method" );
   static_assert( has_visited_v<Ntk>, "Ntk does not implement the has_visited method" );
 
-  using resub_view_t = fanout_view<depth_view<Ntk>>;
-  depth_view<Ntk> depth_view{ntk};
-  resub_view_t resub_view{depth_view};
+  using resub_view_t = fanout_view<depth_view<Ntk,NodeCostFn>>;
+  //depth_view_params ps_d;
+  //depth_view<Ntk> depth_view{ntk, ::detail::fanout_cost_depth<Ntk>(), ps_d};
+  resub_view_t resub_view{ntk};
 
   resubstitution_stats st;
   if ( ps.max_pis == 8 )

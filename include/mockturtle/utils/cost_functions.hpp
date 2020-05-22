@@ -51,6 +51,20 @@ struct unit_cost
 };
 
 template<class Ntk>
+struct fanout_cost
+{
+  uint32_t operator()( Ntk const& ntk, mockturtle::node<Ntk> const& n ) const
+  {
+    uint32_t cost = 0;
+    if ( ntk.fanout_size( n ) > 16 )
+      cost = ntk.fanout_size( n );
+    else
+      cost = 1;
+    return cost;
+  }
+};
+
+template<class Ntk>
 struct mc_cost
 {
   uint32_t operator()( Ntk const& ntk, node<Ntk> const& node ) const

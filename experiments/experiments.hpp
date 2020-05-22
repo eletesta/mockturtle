@@ -394,6 +394,35 @@ static const char* benchmarks_sce[] = {
     "cavlc", "i2c", "int2float", "priority", "voter", "apex6", "i10", "x4", "c499", "c2670", "c3540", "c5315", 
     "c7552"};
 
+static const char* benchmarks_aqfp[] = {
+    "c17", 
+    "c432", 
+    //"c499", 
+    "c880", 
+    //"c1355", 
+    "c1908", 
+    "c2670", "c3540", 
+    "c5315", //"c6288", 
+    "c7552", 
+    "alu4", "apex6", //"cm82a", 
+   // "des", "i10",
+     "in5", //"majority", 
+     "sqr6", "x4", "Z9sym", 
+     //"xor5", 
+     "xparc", "prom2", 
+     //"parity", 
+     //"my_adder", 
+     "k2",
+     "in7", 
+     //"frg2", 
+     "ex7", "count", "9symml",
+     "x1dn", "x9dn",
+     "m3", 
+    };
+
+static const char* benchmarks_test[] = {
+    "test1", "test2", "test3", "test4", "test5", "test6", "test7", "test8", "test9"};
+
 std::vector<std::string> epfl_benchmarks( uint32_t selection = all )
 {
   std::vector<std::string> result;
@@ -403,6 +432,26 @@ std::vector<std::string> epfl_benchmarks( uint32_t selection = all )
     {
       result.push_back( benchmarks[i] );
     }
+  }
+  return result;
+}
+
+std::vector<std::string> aqfp_benchmarks( )
+{
+  std::vector<std::string> result;
+  for ( uint32_t i = 0u; i < 24u; ++i )
+  {
+      result.push_back( benchmarks_aqfp[i] );
+  }
+  return result;
+}
+
+std::vector<std::string> test_benchmarks( )
+{
+  std::vector<std::string> result;
+  for ( uint32_t i = 0u; i < 9u; ++i )
+  {
+      result.push_back( benchmarks_test[i] );
   }
   return result;
 }
@@ -435,6 +484,29 @@ std::string benchmark_sce_path( std::string const& benchmark_name )
 #endif
 }
 
+std::string benchmark_aqfp_path( std::string const& benchmark_name )
+{
+#ifndef EXPERIMENTS_PATH
+  return fmt::format( "{}.v", benchmark_name );
+#else
+  return fmt::format( "{}benchmarks_aqfp/{}.v", EXPERIMENTS_PATH, benchmark_name );
+#endif
+}
+
+std::string benchmark_test_path( std::string const& benchmark_name )
+{
+#ifndef EXPERIMENTS_PATH
+  return fmt::format( "{}.v", benchmark_name );
+#else
+  return fmt::format( "{}benchmarks_test/{}.v", EXPERIMENTS_PATH, benchmark_name );
+#endif
+}
+
+std::string benchmark_sce_mig_path( std::string const& benchmark_name )
+{
+  return fmt::format( "../experiments/benchmarks_sce/{}_mig.v", benchmark_name );
+}
+
 template<class Ntk>
 bool abc_cec( Ntk const& ntk, std::string const& benchmark )
 {
@@ -461,6 +533,48 @@ bool abc_cec_sce( Ntk const& ntk, std::string const& benchmark )
 {
   mockturtle::write_bench( ntk, "/tmp/test.bench" );
   std::string command = fmt::format( "../../abc/abc -q \"cec -n {} /tmp/test.bench\"", benchmark_sce_path( benchmark ) );
+
+  std::array<char, 128> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  return result.size() >= 23 && result.substr( 0u, 23u ) == "Networks are equivalent";
+}
+
+template<class Ntk>
+bool abc_cec_aqfp( Ntk const& ntk, std::string const& benchmark )
+{
+  mockturtle::write_bench( ntk, "/tmp/test.bench" );
+  std::string command = fmt::format( "../../abc/abc -q \"cec -n {} /tmp/test.bench\"", benchmark_aqfp_path( benchmark ) );
+
+  std::array<char, 128> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( command.c_str(), "r" ), pclose );
+  if ( !pipe )
+  {
+    throw std::runtime_error( "popen() failed" );
+  }
+  while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr )
+  {
+    result += buffer.data();
+  }
+
+  return result.size() >= 23 && result.substr( 0u, 23u ) == "Networks are equivalent";
+}
+
+template<class Ntk>
+bool abc_cec_sce_mig( Ntk const& ntk, std::string const& benchmark )
+{
+  mockturtle::write_bench( ntk, "/tmp/test.bench" );
+  std::string command = fmt::format( "../../abc/abc -q \"cec -n {} /tmp/test.bench\"", benchmark_sce_mig_path( benchmark ) );
 
   std::array<char, 128> buffer;
   std::string result;
