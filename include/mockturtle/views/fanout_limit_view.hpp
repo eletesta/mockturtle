@@ -1,34 +1,33 @@
 /* mockturtle: C++ logic network library
-  * Copyright (C) 2018-2020  EPFL
-  *
-  * Permission is hereby granted, free of charge, to any person
-  * obtaining a copy of this software and associated documentation
-  * files (the "Software"), to deal in the Software without
-  * restriction, including without limitation the rights to use,
-  * copy, modify, merge, publish, distribute, sublicense, and/or sell
-  * copies of the Software, and to permit persons to whom the
-  * Software is furnished to do so, subject to the following
-  * conditions:
-  *
-  * The above copyright notice and this permission notice shall be
-  * included in all copies or substantial portions of the Software.
-  *
-  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-  * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-  * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-  * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-  * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-  * OTHER DEALINGS IN THE SOFTWARE.
-  */
+ * Copyright (C) 2018-2020  EPFL
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 /*!
-   \file fanout_limit_view.hpp
-   \brief View that replicates nodes whose fanout size exceed a limit
-
-   \author Heinz Riener
- */
+  \file fanout_limit_view.hpp
+  \brief View that replicates nodes whose fanout size exceed a limit
+  \author Heinz Riener
+*/
 
 #pragma once
 
@@ -48,19 +47,34 @@ class fanout_limit_view : public Ntk
 {
 public:
   using storage = typename Ntk::storage;
-  using node = typename Ntk::node;
-  using signal = typename Ntk::signal;
+  using node    = typename Ntk::node;
+  using signal  = typename Ntk::signal;
 
 public:
   fanout_limit_view( Ntk& ntk, fanout_limit_view_params const& ps = {} )
-      : Ntk( ntk ), replicas( ntk ), ps( ps )
+    : Ntk( ntk )
+    , replicas( ntk )
+    , ps( ps )
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
+    assert( ps.fanout_limit > 0u );
+  }
+
+  uint32_t create_po( signal const& f, std::string const& name = std::string() )
+  {
+    if ( Ntk::is_maj( Ntk::get_node( f ) ) && Ntk::fanout_size( Ntk::get_node( f ) ) + 1 > ps.fanout_limit )
+    {
+      return Ntk::create_po( replicate_node( f ), name );
+    }
+    else
+    {
+      return Ntk::create_po( f, name );
+    }
   }
 
   signal create_maj( signal const& a, signal const& b, signal const& c )
   {
-    std::array<signal, 3u> fanins;
+    std::array<signal,3u> fanins;
     fanins[0u] = ( Ntk::is_maj( Ntk::get_node( a ) ) && Ntk::fanout_size( Ntk::get_node( a ) ) >= ps.fanout_limit - 1 ) ? replicate_node( a ) : a;
     fanins[1u] = ( Ntk::is_maj( Ntk::get_node( b ) ) && Ntk::fanout_size( Ntk::get_node( b ) ) >= ps.fanout_limit - 1 ) ? replicate_node( b ) : b;
     fanins[2u] = ( Ntk::is_maj( Ntk::get_node( c ) ) && Ntk::fanout_size( Ntk::get_node( c ) ) >= ps.fanout_limit - 1 ) ? replicate_node( c ) : c;
@@ -171,10 +185,10 @@ public:
       return Ntk::make_signal( it->second );
     }
 
-    std::array<signal, 3u> fanins;
-    Ntk::foreach_fanin( n, [&]( signal const& f, auto index ) {
-      fanins[index] = ( Ntk::is_maj( Ntk::get_node( f ) ) && Ntk::fanout_size( Ntk::get_node( f ) ) >= ps.fanout_limit - 1 ) ? replicate_node( f ) : f;
-    } );
+    std::array<signal,3u> fanins;
+    Ntk::foreach_fanin( n, [&]( signal const& f, auto index ){
+        fanins[index] = ( Ntk::is_maj( Ntk::get_node( f ) ) && Ntk::fanout_size( Ntk::get_node( f ) ) >= ps.fanout_limit - 1u ) ? replicate_node( f ) : f;
+      });
 
     auto const new_signal = create_maj_overwrite_strash( fanins[0u], fanins[1u], fanins[2u] );
     replicas[n] = Ntk::get_node( new_signal );
@@ -269,7 +283,7 @@ protected:
 
 protected:
   uint32_t count_hash_overwrites{0};
-  unordered_node_map<node, Ntk> replicas;
+  unordered_node_map<node,Ntk> replicas;
   fanout_limit_view_params const& ps;
 };
 

@@ -49,6 +49,7 @@
 #include "../utils/stopwatch.hpp"
 #include "../views/cut_view.hpp"
 #include "../views/fanout_view.hpp"
+#include "../views/depth_view.hpp"
 #include "cleanup.hpp"
 #include "cut_enumeration.hpp"
 #include "detail/mffc_utils.hpp"
@@ -445,7 +446,8 @@ public:
         {
           children.push_back( ntk.make_signal( ntk.index_to_node( l ) ) );
         }
-
+        
+        
         int32_t value = recursive_deref<Ntk, NodeCostFn>( ntk, n );
         {
           stopwatch t( st.time_rewriting );
@@ -503,7 +505,7 @@ public:
 
         recursive_ref<Ntk, NodeCostFn>( ntk, n );
       }
-
+      
       return true;
     } );
 
@@ -544,8 +546,9 @@ public:
       {
         std::cout << "[i] optimize cut #" << v_cut << " in node #" << ntk.node_to_index( v_node ) << " and replace with node " << ntk.node_to_index( ntk.get_node( replacement ) ) << "\n";
       }
-
       ntk.substitute_node( v_node, replacement );
+      //if constexpr ( !std::is_same_v<typename Ntk::base_type, klut_network> )
+      //ntk.update_fanout();
     }
   }
 
@@ -555,7 +558,6 @@ private:
     /* terminate? */
     if ( ntk.is_constant( n ) || ntk.is_pi( n ) )
       return {0, false};
-
     /* recursively collect nodes */
     int32_t value = cost_fn( ntk, n );
     bool contains = ( n == repl );
@@ -641,7 +643,7 @@ void cut_rewriting_with_compatibility_graph( Ntk& ntk, RewritingFn&& rewriting_f
   static_assert( has_index_to_node_v<Ntk>, "Ntk does not implement the index_to_node method" );
   static_assert( has_substitute_node_v<Ntk>, "Ntk does not implement the substitute_node method" );
   static_assert( has_make_signal_v<Ntk>, "Ntk does not implement the make_signal method" );
-
+  
   cut_rewriting_stats st;
   if constexpr ( std::is_same_v<typename Ntk::base_type, klut_network> )
   {

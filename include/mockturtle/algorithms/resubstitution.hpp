@@ -47,17 +47,30 @@
 
 namespace detail
 {
+
+template<class Ntk>
+int used_as_po( Ntk& ntk, mockturtle::node<Ntk>& n )
+{
+  int count = 0;
+  ntk.foreach_po( [&]( auto s ) {
+    if ( ntk.get_node( s ) == n )
+      count++;
+    return true;
+  } );
+  return count;
+}
+
 template<class Ntk>
 struct fanout_cost_depth
 {
   uint32_t operator()( Ntk const& ntk, mockturtle::node<Ntk> const& n ) const
   {
     uint32_t cost = 0;
-    if ( ntk.fanout_size( n ) == 1 )
+    if ( ntk.fanout_size( n ) + used_as_po( ntk, n ) == 1 )
       cost = 1;
-    else if ( ( ntk.fanout_size( n ) > 1 ) && ( ntk.fanout_size( n ) < 5 ) )
+    else if ( ( ntk.fanout_size( n ) + used_as_po( ntk, n ) > 1 ) && ( ntk.fanout_size( n ) + used_as_po( ntk, n ) < 5 ) )
       cost = 2;
-    else if ( ( ntk.fanout_size( n ) > 4 ) && ( ntk.fanout_size( n ) < 17 ) )
+    else if ( ( ntk.fanout_size( n ) + used_as_po( ntk, n ) > 4 ) && ( ntk.fanout_size( n ) + used_as_po( ntk, n ) < 17 ) )
       cost = 3;
     return cost;
   }
@@ -824,7 +837,7 @@ private:
  * \param pst Resubstitution statistics
  */
 template<class Ntk, class NodeCostFn>
-void resubstitution( depth_view<Ntk,NodeCostFn>& ntk, resubstitution_params const& ps = {}, resubstitution_stats* pst = nullptr )
+void resubstitution( depth_view<Ntk, NodeCostFn>& ntk, resubstitution_params const& ps = {}, resubstitution_stats* pst = nullptr )
 {
   static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
   static_assert( has_clear_values_v<Ntk>, "Ntk does not implement the clear_values method" );
@@ -844,7 +857,7 @@ void resubstitution( depth_view<Ntk,NodeCostFn>& ntk, resubstitution_params cons
   static_assert( has_value_v<Ntk>, "Ntk does not implement the has_value method" );
   static_assert( has_visited_v<Ntk>, "Ntk does not implement the has_visited method" );
 
-  using resub_view_t = fanout_view<depth_view<Ntk,NodeCostFn>>;
+  using resub_view_t = fanout_view<depth_view<Ntk, NodeCostFn>>;
   //depth_view_params ps_d;
   //depth_view<Ntk> depth_view{ntk, ::detail::fanout_cost_depth<Ntk>(), ps_d};
   resub_view_t resub_view{ntk};

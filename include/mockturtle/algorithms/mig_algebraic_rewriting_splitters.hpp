@@ -82,6 +82,7 @@ private:
         return;
       topo_view topo{ntk, po};
       topo.foreach_node( [this]( auto n ) {
+        mark_critical_paths();
         reduce_depth( n );
         return true;
       } );
@@ -99,7 +100,6 @@ private:
       topo.foreach_node( [this, &counter]( auto n ) {
         if ( ntk.fanout_size( n ) == 0 || ntk.value( n ) == 0 )
           return;
-
         if ( reduce_depth( n ) )
         {
           mark_critical_paths();
@@ -141,6 +141,7 @@ private:
 private:
   bool reduce_depth( node<Ntk> const& n )
   {
+
     if ( !ntk.is_maj( n ) )
       return false;
 
@@ -179,12 +180,32 @@ private:
       ocs2[2] = !ocs2[2];
     }
 
+    auto index = 0;
+
     if ( auto cand = associativity_candidate( ocs[0], ocs[1], ocs2[0], ocs2[1], ocs2[2] ); cand )
     {
       const auto& [x, y, z, u, assoc] = *cand;
-      auto opt = ntk.create_maj( z, assoc ? u : x, ntk.create_maj( x, y, u ) );
-      if ( ( ntk.fanout_size( ntk.get_node( opt ) ) == 5 ) || ( ntk.fanout_size( ntk.get_node( opt ) ) >= 17 ) || ( ntk.fanout_size( ntk.get_node( opt ) ) == 2 ) ) // it would mean the depth is actually increased
-        return true;
+
+      signal<Ntk> third;
+      if ( assoc )
+      {
+        third = u;
+      }
+      else
+        third = x;
+
+      auto h = ntk.create_maj( x, y, u );
+      auto opt = ntk.create_maj( z, third, h );
+
+      if ( ntk.fanout_size( ntk.get_node( opt ) ) < 1 ) // opt does not exists
+      {
+        if ( ( ntk.fanout_size( ntk.get_node( h ) ) == 5 ) || ( ntk.fanout_size( ntk.get_node( h ) ) >= 17 ) || ( ntk.fanout_size( ntk.get_node( h ) ) == 2 ) ) // it would mean the depth is actually increased
+        {
+          ntk.take_out_node( ntk.get_node( opt ) );
+          return true;
+        }
+      }
+
       ntk.substitute_node( n, opt );
       ntk.update_levels();
       return true;
@@ -194,14 +215,61 @@ private:
     if ( ps.allow_area_increase )
     {
       auto s1 = ntk.create_maj( ocs[0], ocs[1], ocs2[0] );
-      if ( ( ntk.fanout_size( ntk.get_node( s1 ) ) == 5 ) || ( ntk.fanout_size( ntk.get_node( s1 ) ) >= 17 ) || ( ntk.fanout_size( ntk.get_node( s1 ) ) == 2 ) ) // it would mean the depth is actually increased
-        return true;
+
       auto s2 = ntk.create_maj( ocs[0], ocs[1], ocs2[1] );
-      if ( ( ntk.fanout_size( ntk.get_node( s2 ) ) == 5 ) || ( ntk.fanout_size( ntk.get_node( s2 ) ) >= 17 ) || ( ntk.fanout_size( ntk.get_node( s2 ) ) == 2 ) ) // it would mean the depth is actually increased
-        return true;
+      if ( ntk.fanout_size( ntk.get_node( s2 ) ) < 1 )
+      {
+        index = ntk.node_to_index( ntk.get_node( ocs[0] ) );
+        if ( ( !ntk.is_pi( ntk.get_node( ocs[0] ) ) ) && ( index != 0 ) ) //&& ( ntk.is_on_critical_path( ntk.get_node( ocs[0] ) ) ) )
+        {
+          if ( ( ntk.fanout_size( ntk.get_node( ocs[0] ) ) == 5 ) || ( ntk.fanout_size( ntk.get_node( ocs[0] ) ) >= 17 ) || ( ntk.fanout_size( ntk.get_node( ocs[0] ) ) == 2 ) ) // it would mean the depth is actually increased
+          {
+            if ( ntk.fanout_size( ntk.get_node( s1 ) ) < 1 )
+              ntk.take_out_node( ntk.get_node( s1 ) );
+            ntk.take_out_node( ntk.get_node( s2 ) );
+            return true;
+          }
+        }
+
+        index = ntk.node_to_index( ntk.get_node( ocs[1] ) );
+        if ( ( !ntk.is_pi( ntk.get_node( ocs[1] ) ) ) && ( index != 0 ) )
+        {
+          if ( ( ntk.fanout_size( ntk.get_node( ocs[1] ) ) == 5 ) || ( ntk.fanout_size( ntk.get_node( ocs[1] ) ) >= 17 ) || ( ntk.fanout_size( ntk.get_node( ocs[1] ) ) == 2 ) ) // it would mean the depth is actually increased
+          {
+            if ( ntk.fanout_size( ntk.get_node( s1 ) ) < 1 )
+              ntk.take_out_node( ntk.get_node( s1 ) );
+            ntk.take_out_node( ntk.get_node( s2 ) );
+            return true;
+          }
+        }
+      }
+
       auto opt = ntk.create_maj( ocs2[2], s1, s2 );
-      if ( ( ntk.fanout_size( ntk.get_node( opt ) ) == 5 ) || ( ntk.fanout_size( ntk.get_node( opt ) ) >= 17 ) || ( ntk.fanout_size( ntk.get_node( opt ) ) == 2 ) ) // it would mean the depth is actually increased
+  
+      if ( ( ntk.fanout_size( ntk.get_node( s1 ) ) == 5 ) || ( ntk.fanout_size( ntk.get_node( s1 ) ) >= 17 ) || ( ntk.fanout_size( ntk.get_node( s1 ) ) == 2 ) ) // it would mean the depth is actually increased
+      {
+        if ( ntk.fanout_size( ntk.get_node( s2 ) ) == 1 )
+          ntk.take_out_node( ntk.get_node( s2 ) );
+        if ( ntk.fanout_size( ntk.get_node( opt ) ) < 1 )
+          ntk.take_out_node( ntk.get_node( opt ) );
         return true;
+      }
+      if ( ( ntk.fanout_size( ntk.get_node( s2 ) ) == 5 ) || ( ntk.fanout_size( ntk.get_node( s2 ) ) >= 17 ) || ( ntk.fanout_size( ntk.get_node( s2 ) ) == 2 ) ) // it would mean the depth is actually increased
+      {
+        if ( ntk.fanout_size( ntk.get_node( s1 ) ) == 1 )
+          ntk.take_out_node( ntk.get_node( s1 ) );
+        if ( ntk.fanout_size( ntk.get_node( opt ) ) < 1 )
+          ntk.take_out_node( ntk.get_node( opt ) );
+        return true;
+      }
+      if ( ( ntk.fanout_size( ntk.get_node( opt ) ) == 4 ) || ( ntk.fanout_size( ntk.get_node( opt ) ) >= 16 ) || ( ntk.fanout_size( ntk.get_node( opt ) ) == 1 ) ) // it would mean the depth is actually increased
+      {
+        if ( ntk.fanout_size( ntk.get_node( s1 ) ) == 1 )
+          ntk.take_out_node( ntk.get_node( s1 ) );
+        if ( ntk.fanout_size( ntk.get_node( s2 ) ) == 1 )
+          ntk.take_out_node( ntk.get_node( s2 ) );
+        return true;
+      }
       ntk.substitute_node( n, opt );
       ntk.update_levels();
     }
@@ -271,7 +339,7 @@ private:
   Ntk& ntk;
   mig_algebraic_depth_rewriting_params const& ps;
   mig_algebraic_depth_rewriting_stats& st;
-};
+}; // namespace detail
 
 } // namespace detail
 

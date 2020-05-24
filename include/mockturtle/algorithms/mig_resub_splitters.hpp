@@ -1,34 +1,34 @@
 /* mockturtle: C++ logic network library
- * Copyright (C) 2018-2019  EPFL
- *
- * Permission is hereby granted, free of charge, to any person
- * obtaining a copy of this software and associated documentation
- * files (the "Software"), to deal in the Software without
- * restriction, including without limitation the rights to use,
- * copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following
- * conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
- * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
- */
+  * Copyright (C) 2018-2019  EPFL
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+  * files (the "Software"), to deal in the Software without
+  * restriction, including without limitation the rights to use,
+  * copy, modify, merge, publish, distribute, sublicense, and/or sell
+  * copies of the Software, and to permit persons to whom the
+  * Software is furnished to do so, subject to the following
+  * conditions:
+  *
+  * The above copyright notice and this permission notice shall be
+  * included in all copies or substantial portions of the Software.
+  *
+  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+  * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+  * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+  * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+  * OTHER DEALINGS IN THE SOFTWARE.
+  */
 
 /*!
-  \file mig_resub.hpp
-  \brief Resubstitution
+   \file mig_resub.hpp
+   \brief Resubstitution
 
-  \author Heinz Riener
-*/
+   \author Heinz Riener
+ */
 
 #pragma once
 
@@ -151,12 +151,12 @@ public:
       auto const d = divs.at( i );
       if ( !ntk.is_pi( d ) )
       {
-        if ( ( ntk.fanout_size( d ) == 4 ) || ( ntk.fanout_size( d ) >= 16 ) || ( ntk.fanout_size( d ) == 1 ) ) // it would mean the depth is actually increased
+        if ( (  ntk.fanout_size( d ) == 4 ) || (  ntk.fanout_size( d )  >= 16 ) || (  ntk.fanout_size( d )  == 1 ) ) // it would mean the depth is actually increased
           continue;
-        auto fanout = ntk.fanout_size( root );
-        if ( ( ntk.fanout_size( d ) < 4 ) && ( ( ntk.fanout_size( d ) + fanout ) > 4 ) )
+        auto fanout = ntk.fanout_size( root ) ;
+        if ( ( ntk.fanout_size( d ) < 4 ) && (  ntk.fanout_size( d ) + fanout  > 4 ) )
           continue;
-        else if ( ( ntk.fanout_size( d ) < 16 ) && ( ntk.fanout_size( d ) > 4 ) && ( ( ntk.fanout_size( d ) + fanout ) > 16 ) )
+        else if ( (  ntk.fanout_size( d )  < 16 ) && (  ntk.fanout_size( d )  > 4 ) && (  ntk.fanout_size( d ) + fanout  > 16 ) )
           continue;
       }
 
@@ -184,7 +184,7 @@ public:
 
       if ( !ntk.is_pi( d0 ) )
       {
-        if ( ( ntk.fanout_size( d0 ) == 4 ) || ( ntk.fanout_size( d0 ) >= 16 ) || ( ntk.fanout_size( d0 ) == 1 ) ) // it would mean the depth is actually increased
+        if ( (  ntk.fanout_size( d0 ) == 4 ) || (  ntk.fanout_size( d0 ) >= 16 ) || (  ntk.fanout_size( d0 )  == 1 ) ) // it would mean the depth is actually increased
           continue;
       }
 
@@ -302,12 +302,12 @@ public:
 
       if ( !ntk.is_pi( ntk.get_node( s0 ) ) )
       {
-        if ( ( ntk.fanout_size( ntk.get_node( s0 ) ) == 4 ) || ( ntk.fanout_size( ntk.get_node( s0 ) ) >= 16 ) || ( ntk.fanout_size( ntk.get_node( s0 ) ) == 1 ) ) // it would mean the depth is actually increased
+        if ( (  ntk.fanout_size( ntk.get_node( s0 ) )  == 4 ) || ( ntk.fanout_size( ntk.get_node( s0 ) )  >= 16 ) || (  ntk.fanout_size( ntk.get_node( s0 ) )  == 1 ) ) // it would mean the depth is actually increased
           continue;
       }
       if ( !ntk.is_pi( ntk.get_node( s1 ) ) )
       {
-        if ( ( ntk.fanout_size( ntk.get_node( s1 ) ) == 4 ) || ( ntk.fanout_size( ntk.get_node( s1 ) ) >= 16 ) || ( ntk.fanout_size( ntk.get_node( s1 ) ) == 1 ) ) // it would mean the depth is actually increased
+        if ( (  ntk.fanout_size( ntk.get_node( s1 ) ) == 4 ) || (  ntk.fanout_size( ntk.get_node( s1 ) )  >= 16 ) || (  ntk.fanout_size( ntk.get_node( s1 ) )  == 1 ) ) // it would mean the depth is actually increased
           continue;
       }
 
@@ -316,7 +316,7 @@ public:
         auto s2 = udivs.positive_divisors0.at( j );
         if ( !ntk.is_pi( ntk.get_node( s2 ) ) )
         {
-          if ( ( ntk.fanout_size( ntk.get_node( s2 ) ) == 4 ) || ( ntk.fanout_size( ntk.get_node( s2 ) ) >= 16 ) || ( ntk.fanout_size( ntk.get_node( s2 ) ) == 1 ) ) // it would mean the depth is actually increased
+          if ( (  ntk.fanout_size( ntk.get_node( s2 ) )  == 4 ) || (  ntk.fanout_size( ntk.get_node( s2 ) )  >= 16 ) || (  ntk.fanout_size( ntk.get_node( s2 ) )  == 1 ) ) // it would mean the depth is actually increased
             continue;
         }
 
@@ -331,8 +331,10 @@ public:
           auto const b = sim.get_phase( ntk.get_node( s1 ) ) ? !s1 : s1;
           auto const c = sim.get_phase( ntk.get_node( s2 ) ) ? !s2 : s2;
           auto e = ntk.create_maj( a, b, c );
-          if ( ( ntk.fanout_size( ntk.get_node( e ) ) == 2 ) || ( ntk.fanout_size( ntk.get_node( e ) ) == 5 ) || ( ntk.fanout_size( ntk.get_node( e ) ) > 16 ) )
+          if ( (  ntk.fanout_size( ntk.get_node( e ) )  == 2 ) || (  ntk.fanout_size( ntk.get_node( e ) )  == 5 ) || (  ntk.fanout_size( ntk.get_node( e ) )  > 16 ) )
+          {
             continue;
+          }
           else
             return sim.get_phase( root ) ? !e : e;
         }
@@ -340,7 +342,7 @@ public:
         s2 = udivs.positive_divisors1.at( j );
         if ( !ntk.is_pi( ntk.get_node( s2 ) ) )
         {
-          if ( ( ntk.fanout_size( ntk.get_node( s2 ) ) == 4 ) || ( ntk.fanout_size( ntk.get_node( s2 ) ) >= 16 ) || ( ntk.fanout_size( ntk.get_node( s2 ) ) == 1 ) ) // it would mean the depth is actually increased
+          if ( (  ntk.fanout_size( ntk.get_node( s2 ) )  == 4 ) || (  ntk.fanout_size( ntk.get_node( s2 ) ) >= 16 ) || (  ntk.fanout_size( ntk.get_node( s2 ) )  == 1 ) )
             continue;
         }
         tt_s2 = sim.get_tt( s2 );
@@ -352,7 +354,7 @@ public:
           auto const b = sim.get_phase( ntk.get_node( s1 ) ) ? !s1 : s1;
           auto const c = sim.get_phase( ntk.get_node( s2 ) ) ? !s2 : s2;
           auto e = ntk.create_maj( a, b, c );
-          if ( ( ntk.fanout_size( ntk.get_node( e ) ) == 2 ) || ( ntk.fanout_size( ntk.get_node( e ) ) == 5 ) || ( ntk.fanout_size( ntk.get_node( e ) ) > 16 ) )
+          if ( ( ntk.fanout_size( ntk.get_node( e ) )  == 2 ) || (  ntk.fanout_size( ntk.get_node( e ) )  == 5 ) || ( ntk.fanout_size( ntk.get_node( e ) )  > 16 ) )
             continue;
           else
             return sim.get_phase( root ) ? !e : e;
@@ -366,13 +368,13 @@ public:
       auto const s0 = udivs.negative_divisors0.at( i );
       if ( !ntk.is_pi( ntk.get_node( s0 ) ) )
       {
-        if ( ( ntk.fanout_size( ntk.get_node( s0 ) ) == 4 ) || ( ntk.fanout_size( ntk.get_node( s0 ) ) >= 16 ) || ( ntk.fanout_size( ntk.get_node( s0 ) ) == 1 ) ) // it would mean the depth is actually increased
+        if ( (  ntk.fanout_size( ntk.get_node( s0 ) )  == 4 ) || ( ntk.fanout_size( ntk.get_node( s0 ) )  >= 16 ) || (  ntk.fanout_size( ntk.get_node( s0 ) )  == 1 ) ) // it would mean the depth is actually increased
           continue;
       }
       auto const s1 = udivs.negative_divisors1.at( i );
       if ( !ntk.is_pi( ntk.get_node( s1 ) ) )
       {
-        if ( ( ntk.fanout_size( ntk.get_node( s1 ) ) == 4 ) || ( ntk.fanout_size( ntk.get_node( s1 ) ) >= 16 ) || ( ntk.fanout_size( ntk.get_node( s1 ) ) == 1 ) ) // it would mean the depth is actually increased
+        if ( (  ntk.fanout_size( ntk.get_node( s1 ) ) == 4 ) || (  ntk.fanout_size( ntk.get_node( s1 ) )  >= 16 ) || (  ntk.fanout_size( ntk.get_node( s1 ) )  == 1 ) ) // it would mean the depth is actually increased
           continue;
       }
 
@@ -381,7 +383,7 @@ public:
         auto s2 = udivs.negative_divisors0.at( j );
         if ( !ntk.is_pi( ntk.get_node( s2 ) ) )
         {
-          if ( ( ntk.fanout_size( ntk.get_node( s2 ) ) == 4 ) || ( ntk.fanout_size( ntk.get_node( s2 ) ) >= 16 ) || ( ntk.fanout_size( ntk.get_node( s2 ) ) == 1 ) ) // it would mean the depth is actually increased
+          if ( (  ntk.fanout_size( ntk.get_node( s2 ) )  == 4 ) || (  ntk.fanout_size( ntk.get_node( s2 ) ) >= 16 ) || (  ntk.fanout_size( ntk.get_node( s2 ) )  == 1 ) )
             continue;
         }
 
@@ -396,7 +398,7 @@ public:
           auto const b = sim.get_phase( ntk.get_node( s1 ) ) ? !s1 : s1;
           auto const c = sim.get_phase( ntk.get_node( s2 ) ) ? !s2 : s2;
           auto e = ntk.create_maj( !a, b, c );
-          if ( ( ntk.fanout_size( ntk.get_node( e ) ) == 2 ) || ( ntk.fanout_size( ntk.get_node( e ) ) == 5 ) || ( ntk.fanout_size( ntk.get_node( e ) ) > 16 ) )
+          if ( ( ntk.fanout_size( ntk.get_node( e ) )  == 2 ) || (  ntk.fanout_size( ntk.get_node( e ) )  == 5 ) || ( ntk.fanout_size( ntk.get_node( e ) )  > 16 ) )
             continue;
           else
             return sim.get_phase( root ) ? !e : e;
@@ -405,7 +407,7 @@ public:
         s2 = udivs.negative_divisors1.at( j );
         if ( !ntk.is_pi( ntk.get_node( s2 ) ) )
         {
-          if ( ( ntk.fanout_size( ntk.get_node( s2 ) ) == 4 ) || ( ntk.fanout_size( ntk.get_node( s2 ) ) >= 16 ) || ( ntk.fanout_size( ntk.get_node( s2 ) ) == 1 ) ) // it would mean the depth is actually increased
+          if ( (  ntk.fanout_size( ntk.get_node( s2 ) )  == 4 ) || (  ntk.fanout_size( ntk.get_node( s2 ) ) >= 16 ) || (  ntk.fanout_size( ntk.get_node( s2 ) )  == 1 ) )
             continue;
         }
         tt_s2 = sim.get_tt( s2 );
@@ -417,7 +419,7 @@ public:
           auto const b = sim.get_phase( ntk.get_node( s1 ) ) ? !s1 : s1;
           auto const c = sim.get_phase( ntk.get_node( s2 ) ) ? !s2 : s2;
           auto e = ntk.create_maj( !a, b, c );
-          if ( ( ntk.fanout_size( ntk.get_node( e ) ) == 2 ) || ( ntk.fanout_size( ntk.get_node( e ) ) == 5 ) || ( ntk.fanout_size( ntk.get_node( e ) ) > 16 ) )
+          if ( ( ntk.fanout_size( ntk.get_node( e ) )  == 2 ) || (  ntk.fanout_size( ntk.get_node( e ) )  == 5 ) || ( ntk.fanout_size( ntk.get_node( e ) )  > 16 ) )
             continue;
           else
             return sim.get_phase( root ) ? !e : e;
