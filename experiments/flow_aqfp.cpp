@@ -177,7 +177,7 @@ int compute_buffers_not_shared( Ntk mig )
 
   mig.foreach_gate( [&]( auto f ) {
     auto main_depth = depth_mig.level( f );
-    auto index2 = mig.node_to_index( f );
+    //auto index2 = mig.node_to_index( f );
     mig.foreach_fanin( f, [&]( auto const& s ) {
       auto index = mig.node_to_index( mig.get_node( s ) );
       if ( index == 0 )
@@ -204,10 +204,12 @@ int compute_buffers_not_shared( Ntk mig )
     auto index = mig.node_to_index( mig.get_node( s ) );
     if ( index == 0 )
       return true;
+    if ( mig.is_pi( mig.get_node( s ) ) )
+      return true;
     int diff = total_depth - depth_mig.level( mig.get_node( s ) ); // - buffers[index];
-    for ( auto g = 0u; g < diff; g++ )
+    for ( auto g = 0; g < diff; g++ )
     {
-      if ( g < buffers[index].size() )
+      if ( g < int( buffers[index].size() ) )
         buffers[index][g]++;
       else
         buffers[index].push_back( 1 );
@@ -251,7 +253,7 @@ uint32_t JJ_number_final( Ntk ntk )
       JJ = JJ + 16 * 3;
     return true;
   } );
-  std::cout << " JJ = " << JJ << std::endl;
+  //std::cout << " JJ = " << JJ << std::endl;
   auto buffers = compute_buffers_not_shared( ntk );
   JJ = JJ + buffers * 2;
   return JJ;
@@ -398,14 +400,21 @@ void flow_mig_lim()
   using namespace experiments;
 
   /* limit the fanout to max 16 */
-  using view_mig_t = mockturtle::fanout_limit_view<mockturtle::mig_network>;
+  //using view_mig_t = mockturtle::fanout_limit_view<mockturtle::mig_network>;
 
-  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, bool> exp( "mig_aqfp", "benchmark", "size Original MIG", "Size lim_mig", "depth lim_mig", "max. fanout lim_mig", "# nodes > 16 lim_mig", "size Opt. lim_mig", "depth Opt. lim_mig", "max. fanout Opt lim_mig", "# nodes > 16 Opt lim_mig", "eq cec" );
+  experiments::experiment<std::string, uint32_t, uint32_t, float, uint32_t, uint32_t, float, uint32_t, uint32_t, float, uint32_t, uint32_t, float, bool> exp( "mig_aqfp", "benchmark", "size MIG", "Size Opt MIG", "Impr. Size",
+                                                                                                                                                              "depth MIG", "depth Opt MIG", "Impr. depth", "jj MIG", "jj Opt MIG", "Impr. jj", "jj levels MIG", "jj levels Opt MIG", "Impr. jj levels", "eq cec" );
+
+  int max_fanout = 0;
+  std::string max_bench;
+  float nodes_larger = 0;
+  float count = 0;
 
   for ( auto const& benchmark : aqfp_benchmarks() )
   {
-    if ( ( benchmark != "c432" ) && ( benchmark != "in5" ) && ( benchmark != "m3" ) && ( benchmark != "prom2" ) ) // debug
-      continue;
+    count++;
+    //if ( ( benchmark != "c432" ) && ( benchmark != "in5" ) && ( benchmark != "m3" ) && ( benchmark != "prom2" ) ) // debug
+    //continue;
     fmt::print( "[i] processing {}\n", benchmark );
 
     /* read aig */
@@ -417,34 +426,42 @@ void flow_mig_lim()
       return;
     }
 
-    mig.foreach_gate( [&]( const auto& n ) {
-      if ( mig.fanout_size( n ) > 16 ) // change if we need to consider POs
-      {
-        std::cout << "[mig] node " << n << " has " << mig.fanout_size( n ) << " fanouts" << std::endl;
-      }
-    } );
-
     mockturtle::depth_view_params ps_d;
 
-    auto const size_b = mig.num_gates();
+    // auto const size_b = mig.num_gates();
 
     mockturtle::fanout_limit_view_params ps{16u};
     mockturtle::mig_network mig2;
-    mockturtle::fanout_limit_view lim_mig( mig2 ); //, ps);
+    mockturtle::fanout_limit_view lim_mig( mig2, ps ); //, ps);
     cleanup_dangling( mig, lim_mig );
 
     lim_mig.foreach_gate( [&]( const auto& n ) { // needs fixing to consider POs
       if ( lim_mig.fanout_size( n ) > 16 )
       {
-        std::cout << "[lim_mig] node " << n << " has " << lim_mig.fanout_size( n ) << " fanouts" << std::endl;
+        std::cout << " error!\n";
+        std::abort();
+        return;
       }
     } );
 
-    auto const size_fanout_b = lim_mig.num_gates();
     mockturtle::depth_view mig_d2{lim_mig};
-    auto const depth_b = mig_d2.depth();
+    mockturtle::depth_view mig_dd_d2{lim_mig, detail::fanout_cost_depth_local<mockturtle::mig_network>(), ps_d};
+    float const size_b = lim_mig.num_gates();
+    float const depth_b = mig_d2.depth();
+    float const jj_b = detail::JJ_number_final( lim_mig );
+    float const jj_levels_b = mig_dd_d2.depth();
+
     auto const max_fanout_b = detail::compute_maxfanout( mig );
+    if ( max_fanout_b > max_fanout )
+    {
+      max_fanout = max_fanout_b;
+      max_bench = benchmark;
+    }
+
+    std::cout << detail::compute_maxfanout( lim_mig ) << std::endl;
+
     auto const node_larger_16_b = detail::compute_fanout4( mig );
+    nodes_larger = nodes_larger + node_larger_16_b;
 
     auto i = 0;
     while ( true )
@@ -454,57 +471,55 @@ void flow_mig_lim()
         break;
 
       mockturtle::mig_network mig46;
-      mockturtle::fanout_limit_view lim_mig( mig46 );
+      mockturtle::fanout_limit_view lim_mig( mig46, ps );
       cleanup_dangling( mig, lim_mig );
 
       mockturtle::mig_algebraic_depth_rewriting_params ps_a;
       mockturtle::depth_view mig1_dd_d{lim_mig, detail::fanout_cost_depth_local<mockturtle::mig_network>(), ps_d};
       auto depth = mig1_dd_d.depth();
-      ps_a.overhead = 1.4;
+      ps_a.overhead = 1.5;
       ps_a.strategy = mockturtle::mig_algebraic_depth_rewriting_params::dfs;
       ps_a.allow_area_increase = true;
-      std::cout << " lim mig = " << lim_mig.num_gates() << std::endl;
       mig_algebraic_depth_rewriting_splitters( mig1_dd_d, ps_a );
       mig = mig1_dd_d;
       mockturtle::mig_network mig3;
-      mockturtle::fanout_limit_view lim_mig2( mig3 );
+      mockturtle::fanout_limit_view lim_mig2( mig3, ps );
       cleanup_dangling( mig, lim_mig2 );
-      // how can I clean lim_mig?? -- the while loop will not work if I ll not clean it
-      //cleanup_dangling( mig , lim_mig);
 
-      std::cout << " lim mig after depth rewriting= " << lim_mig2.num_gates() << std::endl;
       lim_mig2.foreach_gate( [&]( const auto& n ) { // needs fixing to consider POs
         if ( lim_mig2.fanout_size( n ) > 16 )
         {
-          std::cout << "[lim_mig depth ] node " << n << " has " << lim_mig2.fanout_size( n ) << " fanouts" << std::endl;
+          std::cout << " ERROR\n";
+          std::abort();
+          return;
+          //std::cout << "[lim_mig depth ] node " << n << " has " << lim_mig2.fanout_size( n ) << " fanouts" << std::endl;
         }
       } );
 
       mockturtle::resubstitution_params ps_r;
-      ps_r.max_divisors = 200;
+      ps_r.max_divisors = 250;
       ps_r.max_inserts = 1;
 
-      std::cout << " resub " << std::endl;
-      auto size_o = mig.num_gates();
+      auto size_o = lim_mig.num_gates();
       mockturtle::depth_view mig2_dd_r{lim_mig2, detail::fanout_cost_depth_local<mockturtle::mig_network>(), ps_d};
       mig_resubstitution_splitters( mig2_dd_r, ps_r );
 
       mig = mig2_dd_r;
       mockturtle::mig_network mig4;
-      mockturtle::fanout_limit_view lim_mig3( mig4 );
+      mockturtle::fanout_limit_view lim_mig3( mig4, ps );
       cleanup_dangling( mig, lim_mig3 );
-      // how can I clean lim_mig?? -- the while loop will not work if I ll not clean it
-      std::cout << " lim mig after resub rewriting= " << lim_mig3.num_gates() << std::endl;
 
       lim_mig3.foreach_gate( [&]( const auto& n ) { // needs fixing to consider POs
         if ( lim_mig3.fanout_size( n ) > 16 )
         {
-          std::cout << "[lim_mig resub] node " << n << " has " << lim_mig3.fanout_size( n ) << " fanouts" << std::endl;
+          std::cout << " error!\n";
+          std::abort();
+          return;
         }
       } );
 
       mockturtle::mig_network mig5;
-      mockturtle::fanout_limit_view lim_mig3_b( mig5 );
+      mockturtle::fanout_limit_view lim_mig3_b( mig5, ps );
       cleanup_dangling( mig, lim_mig3_b );
 
       mockturtle::akers_resynthesis<mockturtle::mig_network> resyn;
@@ -513,7 +528,7 @@ void flow_mig_lim()
 
       mig = lim_mig3;
       mockturtle::mig_network mig6;
-      mockturtle::fanout_limit_view lim_mig4( mig6 );
+      mockturtle::fanout_limit_view lim_mig4( mig6, ps );
       cleanup_dangling( mig, lim_mig4 );
 
       mockturtle::depth_view mig2_dd_a{lim_mig4, detail::fanout_cost_depth_local<mockturtle::mig_network>(), ps_d};
@@ -529,24 +544,35 @@ void flow_mig_lim()
     }
 
     mockturtle::mig_network mig3;
-    mockturtle::fanout_limit_view lim_mig4( mig3 );
+    mockturtle::fanout_limit_view lim_mig4( mig3, ps );
     cleanup_dangling( mig, lim_mig4 );
 
     mockturtle::depth_view mig3_dd{lim_mig4};
     mockturtle::depth_view mig3_dd_s{lim_mig4, detail::fanout_cost_depth_local<mockturtle::mig_network>(), ps_d};
 
-    auto const size_fanout_c = lim_mig4.num_gates();
-    auto const depth_c = mig3_dd.depth();
+    float const size_c = lim_mig4.num_gates();
+    float const depth_c = mig3_dd.depth();
+    float const jj_c = detail::JJ_number_final( lim_mig4 );
+    float const jj_levels_c = mig3_dd_s.depth();
 
-    auto const max_fanout_c = detail::compute_maxfanout( lim_mig4 );
-    auto const node_larger_16_c = detail::compute_fanout4( lim_mig4 );
+    std::cout << detail::compute_maxfanout( lim_mig4 ) << std::endl;
 
     auto x = experiments::abc_cec_aqfp( lim_mig4, benchmark );
 
-    exp( benchmark, size_b, size_fanout_b, depth_b, max_fanout_b, node_larger_16_b,
-         size_fanout_c, depth_c, max_fanout_c, node_larger_16_c,
+    auto impr_size = ( size_b - size_c ) / ( size_b );
+    auto impr_depth = ( depth_b - depth_c ) / ( depth_b );
+    auto impr_jj = ( jj_b - jj_c ) / ( jj_b );
+    auto impr_levels = ( jj_levels_b - jj_levels_c ) / ( jj_levels_b );
+
+    exp( benchmark, size_b, size_c, impr_size * 100,
+         depth_b, depth_c, impr_depth * 100,
+         jj_b, jj_c, impr_jj * 100,
+         jj_levels_b, jj_levels_c, impr_levels * 100,
          x );
   }
+
+  std::cout << "the max fanout is " << max_fanout << " for benchmark " << max_bench << std::endl;
+  std::cout << "the average number of nodes with fanout > 16 is equal to  " << float( float( nodes_larger ) / float( count ) ) << std::endl;
 
   exp.save();
   exp.table();
