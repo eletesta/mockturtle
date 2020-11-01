@@ -404,7 +404,7 @@ static const char* benchmarks_aqfp[] = {
     //"c2670", "c3540", 
     "c5315", //"c6288", 
     //"c7552", 
-    "alu4", //"apex6", "cm82a", 
+   // "alu4", //"apex6", "cm82a", 
      //"des", 
      //"i10",
      "in5", //"majority", 
@@ -416,7 +416,7 @@ static const char* benchmarks_aqfp[] = {
      //"parity", 
      //"my_adder", 
      "k2",
-     "in7", 
+     //"in7", 
      //"frg2", 
      //"ex7", 
      "count", //"9symml",
@@ -437,7 +437,7 @@ static const char* benchmarks_test[] = {
 std::vector<std::string> epfl_benchmarks( uint32_t selection = all )
 {
   std::vector<std::string> result;
-  for ( uint32_t i = 0u; i < 20u; ++i )
+  for ( uint32_t i = 0u; i < 21u; ++i )
   {
     if ( ( selection >> i ) & 1 )
     {
@@ -450,7 +450,7 @@ std::vector<std::string> epfl_benchmarks( uint32_t selection = all )
 std::vector<std::string> aqfp_benchmarks( )
 {
   std::vector<std::string> result;
-  for ( uint32_t i = 0u; i < 20u; ++i )
+  for ( uint32_t i = 0u; i < 18u; ++i )
   {
       result.push_back( benchmarks_aqfp[i] );
   }

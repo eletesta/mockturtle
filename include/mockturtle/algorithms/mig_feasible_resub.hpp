@@ -159,16 +159,13 @@ public:
         continue; /* next */
 
       /* skip balanced nodes */
-      min_depth = ntk.level( n ) - 1;
+
       auto ok_nodes = 0;
       ntk.foreach_fanin( n, [&]( const auto& f ) {
         if ( ( ntk.level( n ) - 1 == ntk.level( ntk.get_node( f ) ) ) || ( ntk.node_to_index( ntk.get_node( f ) ) == 0 ) )
         {
           ok_nodes++;
-          return true;
         }
-        if ( ntk.level( ntk.get_node( f ) ) < min_depth )
-          min_depth = ntk.level( ntk.get_node( f ) );
         return true;
       } );
       if ( ok_nodes == int( ntk.fanin_size( n ) ) )
@@ -198,6 +195,7 @@ public:
       call_with_stopwatch( st.time_substitute, [&]() {
         ntk.substitute_node( n, *g );
       } );
+      ntk.update_levels();
     }
   }
 
@@ -270,14 +268,20 @@ private:
 
   std::optional<signal> evaluate( node const& root, std::vector<node> const& leaves )
   {
-    uint32_t const required = std::numeric_limits<uint32_t>::max();
+    uint32_t const required = ntk.level( root ) - 1; //std::numeric_limits<uint32_t>::max();
+
+    auto min_depth = required;
+    ntk.foreach_fanin( root, [&]( const auto& f ) {
+      if ( ntk.level( ntk.get_node( f ) ) < min_depth )
+        min_depth = ntk.level( ntk.get_node( f ) );
+    } );
 
     Node_mffc collector( ntk );
     auto num_mffc = collector.run( root, leaves, temp );
 
     /* collect the divisor nodes in the cut */
     bool div_comp_success = call_with_stopwatch( st.time_divs, [&]() {
-      return collect_divisors( root, leaves, required );
+      return collect_divisors( root, leaves, required, min_depth );
     } );
 
     if ( !div_comp_success )
@@ -285,28 +289,6 @@ private:
       return std::nullopt;
     }
 
-    only_divs.clear();
-
-    // put required as my maximum depth that I can go down to my divisors
-
-    for ( auto k = 0u; k < divs.size() - 1; k++ )
-    {
-      if ( ntk.level( divs[k] ) > min_depth )
-        {
-          only_divs.emplace_back( divs[k] );
-          //std::cout << "divisor = " << ntk.node_to_index(divs[k]) << " with level = " << ntk.level(divs[k]) << std::endl;
-        }
-    }
-
-    std::sort( only_divs.begin(), only_divs.end(), [&]( node& n1, node& n2 ) {
-      return ( ntk.level( n1 ) > ntk.level( n2 ) );
-    } );
-
-    divs.clear();
-    divs = only_divs;
-
-    num_divs = only_divs.size();
-    std::cout << " num divs = " << num_divs << std::endl;
     /* update statistics */
     st.num_total_divisors += num_divs;
     st.num_total_leaves += leaves.size();
@@ -340,16 +322,13 @@ private:
     if ( ntk.value( n ) == 0 && n != 0 ) /* ntk.fanout_size( n ) */
     {
       internal.emplace_back( n );
-      //if ( ntk.level( n ) <= min_depth )
-        //divisors_not_ok++;
     }
   }
 
-  bool collect_divisors( node const& root, std::vector<node> const& leaves, uint32_t required )
+  bool collect_divisors( node const& root, std::vector<node> const& leaves, uint32_t required, uint32_t min_depth )
   {
     /* add the leaves of the cuts to the divisors */
     divs.clear();
-    divisors_not_ok = 0;
 
     ntk.incr_trav_id();
     for ( const auto& l : leaves )
@@ -375,7 +354,7 @@ private:
     }
 
     /* get the number of divisors to collect */
-    int32_t limit = ps.max_divisors - ps.max_pis - ( uint32_t( divs.size() ) + 1 - uint32_t( leaves.size() ) + uint32_t( temp.size() )  );
+    int32_t limit = ps.max_divisors - ps.max_pis - ( uint32_t( divs.size() ) + 1 - uint32_t( leaves.size() ) + uint32_t( temp.size() ) );
 
     /* explore the fanouts, which are not in the MFFC */
     int32_t counter = 0;
@@ -394,6 +373,9 @@ private:
       ntk.foreach_fanout( d, [&]( node const& p ) {
         if ( ntk.visited( p ) == ntk.trav_id() || ntk.level( p ) > required )
           return true; /* next fanout */
+
+        //if ( ntk.level( p ) <= min_depth )
+        //  return true; /* next fanout */
 
         bool all_fanins_visited = true;
         ntk.foreach_fanin( p, [&]( const auto& g ) {
@@ -424,10 +406,6 @@ private:
         divs.emplace_back( p );
         ++size;
         ntk.set_visited( p, ntk.trav_id() );
-        //if ( ntk.level( p ) <= min_depth )
-        //  divisors_not_ok++;
-        //else
-          //counter++;
 
         /* quit computing divisors if there are too many of them */
         if ( ++counter == limit )
@@ -443,6 +421,7 @@ private:
         break;
     }
 
+    num_divs = uint32_t( divs.size() );
     /* add the nodes in the MFFC */
     for ( const auto& t : temp )
     {
@@ -467,8 +446,6 @@ private:
   std::vector<node> divs;
   std::vector<node> only_divs;
   uint32_t num_divs{0};
-  uint32_t min_depth{0};
-  uint32_t divisors_not_ok{0};
 }; // namespace detail
 
 } // namespace detail
@@ -492,6 +469,18 @@ public:
     (void)care;
     assert( is_const0( ~care ) );
 
+    only_divs.clear();
+
+    // put required as my maximum depth that I can go down to my divisors
+    for ( auto k = 0u; k < divs.size() - 1; k++ )
+    {
+      only_divs.emplace_back( divs[k] );
+    }
+
+    std::sort( only_divs.begin(), only_divs.end(), [&]( node& n1, node& n2 ) {
+      return ( ntk.level( n1 ) > ntk.level( n2 ) );
+    } );
+
     /* consider constants */
     auto g = call_with_stopwatch( st.time_resubC, [&]() {
       return resub_const( root, required );
@@ -501,9 +490,19 @@ public:
       return g; /* accepted resub */
     }
 
+    /* resub that considers also depth reduction */
+    g = call_with_stopwatch( st.time_resubC, [&]() {
+      return resub_buffers_depth( root, required );
+    } );
+    /* consider gain in buffer */
+    if ( g )
+    {
+      return g; /* accepted resub */
+    }
+
     /* consider constants */
     g = call_with_stopwatch( st.time_resubC, [&]() {
-      return resub_buffers( root, required );
+      return resub_buffers_cost( root, required );
     } );
     /* consider gain in buffer */
     if ( g )
@@ -555,10 +554,10 @@ public:
     //if ( ntk.fanout_size( ntk.get_node( children[0] ) ) > 1 )
     //return std::nullopt;
 
-    for ( auto i = 0u; i < divs.size(); ++i )
+    for ( auto i = 0u; i < only_divs.size(); ++i )
     {
       auto flag = false;
-      auto const d = divs.at( i );
+      auto const d = only_divs.at( i );
       for ( auto j = 0u; j < children.size(); j++ )
       {
         if ( ntk.get_node( children[j] ) == d )
@@ -593,10 +592,246 @@ public:
     return std::nullopt;
   }
 
+  std::optional<signal> resub_buffers_cost( node const& root, uint32_t required ) const
+  {
+    (void)required;
+    auto const tt = sim.get_tt( ntk.make_signal( root ) );
+    std::vector<signal> children;
+
+    std::vector<signal> ok_c;
+    ntk.foreach_fanin( root, [&]( auto const& s ) {
+      if ( ntk.node_to_index( ntk.get_node( s ) ) == 0 )
+        ok_c.emplace_back( s );
+      else if ( ntk.level( ntk.get_node( s ) ) == ntk.level( root ) - 1 )
+        ok_c.emplace_back( s );
+      else
+        children.emplace_back( s );
+    } );
+
+    if ( children.size() > 1 )
+      std::sort( children.begin(), children.end(), [&]( signal& n1, signal& n2 ) {
+        return ( ntk.level( ntk.get_node( n1 ) ) < ntk.level( ntk.get_node( n2 ) ) );
+      } );
+
+    if ( children.size() == 0 )
+      return std::nullopt;
+
+    children.insert( children.end(), ok_c.begin(), ok_c.end() );
+    bool first = true;
+  /* cost for children [0] */
+  cost:
+    auto n = ntk.get_node( children[0] );
+    auto depth = ntk.level( n );
+    std::vector<int> buffers( ntk.fanout_size( n ) );
+    buffers[0] = ntk.level( root ) - 1 - depth;
+    auto max = 0;
+    if ( is_po( n ) )
+    {
+      auto buffers = ntk.depth() - depth;
+      if ( buffers > max )
+        max = buffers;
+    }
+    auto i = 1;
+    ntk.foreach_fanout( n, [&]( node const& p ) { // e i po?
+      if ( p == root )
+        return true;
+      buffers[i] = ntk.level( p ) - 1 - depth;
+      if ( buffers[i] > max )
+        max = buffers[i];
+      i++;
+      return true;
+    } );
+
+    int gain = buffers[0] - max;
+    if ( ( gain <= 0 ) && ( first ) )
+    {
+      first = false;
+      auto c = children[0];
+      children[0] = children[1];
+      children[1] = c;
+      goto cost;
+    }
+    else if ( ( gain <= 0 ) && ( !first ) )
+      return std::nullopt;
+
+    for ( auto i = 0u; i < only_divs.size(); ++i )
+    {
+      auto flag = false;
+      auto const d = only_divs.at( i );
+      for ( auto j = 0u; j < children.size(); j++ )
+      {
+        if ( ntk.get_node( children[j] ) == d )
+          flag = true;
+      }
+      if ( flag == true )
+        continue;
+
+      if ( ntk.level( d ) >= ntk.level( root ) )
+      {
+        std::cout << " should not happne\n";
+        continue;
+      }
+
+      if ( int( ntk.level( d ) ) <= int( ntk.level( ntk.get_node( children[0] ) ) ) )
+        break;
+
+      auto const tt_s0 = sim.get_tt( ntk.make_signal( d ) );
+      auto const tt_s1 = sim.get_tt( children[1] );
+      auto const tt_s2 = sim.get_tt( children[2] );
+
+      auto const s0 = ntk.make_signal( d );
+      auto const s1 = children[1];
+      auto const s2 = children[2];
+
+      if ( kitty::ternary_majority( tt_s0, tt_s1, tt_s2 ) == tt )
+      {
+        auto const a = sim.get_phase( ntk.get_node( s0 ) ) ? !s0 : s0;
+        auto const b = sim.get_phase( ntk.get_node( s1 ) ) ? !s1 : s1;
+        auto const c = sim.get_phase( ntk.get_node( s2 ) ) ? !s2 : s2;
+        return sim.get_phase( root ) ? !ntk.create_maj( a, b, c ) : ntk.create_maj( a, b, c );
+      }
+    }
+
+    return std::nullopt;
+  }
+
+  std::optional<signal> resub_buffers_depth( node const& root, uint32_t required ) const
+  {
+    (void)required;
+    auto const tt = sim.get_tt( ntk.make_signal( root ) );
+    std::vector<signal> children;
+
+    std::vector<signal> ok_c;
+    ntk.foreach_fanin( root, [&]( auto const& s ) {
+      if ( ntk.node_to_index( ntk.get_node( s ) ) == 0 )
+        ok_c.emplace_back( s );
+      else if ( ntk.level( ntk.get_node( s ) ) != ntk.level( root ) - 1 )
+        ok_c.emplace_back( s );
+      else
+        children.emplace_back( s );
+      return true;
+    } );
+
+    if ( children.size() > 1 ) // only one children is in the highest level
+    {
+      return std::nullopt;
+    }
+
+    assert( children.size() > 0 );
+
+    children.insert( children.end(), ok_c.begin(), ok_c.end() );
+    std::sort( children.begin(), children.end(), [&]( signal& n1, signal& n2 ) {
+      return ( ntk.level( ntk.get_node( n1 ) ) > ntk.level( ntk.get_node( n2 ) ) );
+    } );
+
+    /* cost for children [0] -- the one with the highest depth*/
+    int gain = 0;
+    for ( auto k = 1; k <= 2; k++ )
+    {
+      auto n = ntk.get_node( children[k] );
+      if ( ntk.node_to_index( n ) == 0 )
+        continue;
+      auto depth = ntk.level( n );
+      std::vector<int> buffers( ntk.fanout_size( n ) );
+      buffers[0] = ntk.level( root ) - 1 - depth;
+      auto max = 0;
+      auto i = 1;
+      if ( is_po( n ) )
+      {
+        auto buffers = ntk.depth() - depth;
+        if ( buffers > max )
+          max = buffers;
+      }
+      ntk.foreach_fanout( n, [&]( node const& p ) {
+        if ( p == root )
+          return true;
+
+        buffers[i] = ntk.level( p ) - 1 - depth;
+        if ( buffers[i] > max )
+          max = buffers[i];
+        i++;
+        return true;
+      } );
+      gain = gain + buffers[0] - max;
+    }
+
+    if ( gain <= 0 )
+    {
+      return std::nullopt;
+    }
+
+    for ( auto i = 0u; i < only_divs.size(); ++i )
+    {
+      auto flag = false;
+      auto const d = only_divs.at( i );
+      for ( auto j = 0u; j < children.size(); j++ )
+      {
+        if ( ntk.get_node( children[j] ) == d )
+          flag = true;
+      }
+      if ( flag == true )
+        continue;
+
+      if ( ntk.level( d ) >= ntk.level( root ) - 1 )
+      {
+        continue;
+      }
+
+      // compute buffers divisor
+      auto depth_d = ntk.level( d );
+      auto max = 0;
+      ntk.foreach_fanout( d, [&]( node const& p ) { // e i po?
+        auto buffers = ntk.level( p ) - 1 - depth_d;
+        if ( buffers > max )
+          max = buffers;
+      } );
+
+      if ( ntk.level( d ) + max < ntk.level( ntk.get_node( children[1] ) ) ) // this way I am not adding buffers
+      {
+        continue;
+      }
+
+      // add the right cost calculations
+
+      auto const tt_s0 = sim.get_tt( ntk.make_signal( d ) );
+      auto const tt_s1 = sim.get_tt( children[1] );
+      auto const tt_s2 = sim.get_tt( children[2] );
+
+      auto const s0 = ntk.make_signal( d );
+      auto const s1 = children[1];
+      auto const s2 = children[2];
+
+      if ( kitty::ternary_majority( tt_s0, tt_s1, tt_s2 ) == tt )
+      {
+        auto const a = sim.get_phase( ntk.get_node( s0 ) ) ? !s0 : s0;
+        auto const b = sim.get_phase( ntk.get_node( s1 ) ) ? !s1 : s1;
+        auto const c = sim.get_phase( ntk.get_node( s2 ) ) ? !s2 : s2;
+        return sim.get_phase( root ) ? !ntk.create_maj( a, b, c ) : ntk.create_maj( a, b, c );
+      }
+    }
+
+    return std::nullopt;
+  }
+
+  bool is_po( node const& n ) const
+  {
+    bool is_po = false;
+    ntk.foreach_po( [&]( const auto& x) {
+      if ( ntk.get_node( x ) == n )
+      {
+        is_po = true;
+        return false;
+      }
+      return true;
+    });
+    return is_po;
+  }
+
 private:
   Ntk& ntk;
   Simulator const& sim;
   std::vector<node> const& divs;
+  std::vector<node> only_divs;
   uint32_t const num_divs;
   stats& st;
 }; // namespace mockturtle
